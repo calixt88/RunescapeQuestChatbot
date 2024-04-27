@@ -52,13 +52,38 @@ def scrape_quest_data(url):
             start_point = ' '.join(text_parts).strip()
 
     # Scraping the Quest Requirements (quest_requirements)
+
     # Scraping the Required Quest Items (quest_items)
+    required_items_td = soup.find('td', {'data-attr-param': 'itemsDisp'})
+    quest_items_parts = []
+    if required_items_td:
+        # Find the div that contains the actual list items
+        lighttable_checklist_div = required_items_td.find('div', class_='lighttable checklist')
+        if lighttable_checklist_div:
+            # Find all list items
+            list_items = lighttable_checklist_div.find_all('li')
+            # Extract the text from each list item
+            quest_items_parts = [li.get_text(separator=" ").strip() for li in list_items]
+            quest_items = ','.join(quest_items_parts)
+
     # Scraping the Enemies needed to be defeated (quest_enemies)
+    enemies_info = []
+
+    enemies_td = soup.find('td', {'data-attr-param': 'kills'})
+    if enemies_td:
+        li_tags = enemies_td.find_all('li')
+        for li in li_tags:
+            text = ' '.join(li.stripped_strings)
+            enemies_info.append(text)
+    quest_enemies = ', '.join(enemies_info)
+
     # Scraping Steps Description (quest_steps)
+
     # Scraping the Quest Rewards (quest_rewards)
+
     # Scraping the Quest Achievements (quest_achievements)
 
-    return quest_description, quest_name, release_date, members_requirement, start_point
+    return quest_description, quest_name, release_date, members_requirement, start_point, quest_items, enemies_info, quest_enemies
 
 
 

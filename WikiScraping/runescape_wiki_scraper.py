@@ -1,5 +1,9 @@
 import requests
+import csv
+import time
+from quest_links import quest_links
 from bs4 import BeautifulSoup
+
 
 def scrape_quest_data(url):
     # Initial Beautiful Soup Setup
@@ -15,7 +19,8 @@ def scrape_quest_data(url):
     content_div = soup.find('div', id='bodyContent')
     mw_content_text_div = content_div.find('div', id='mw-content-text') if content_div else None
     quest_description_paragraph = mw_content_text_div.find('p') if mw_content_text_div else None
-    quest_description = ' '.join(quest_description_paragraph.stripped_strings) if quest_description_paragraph else 'No paragraph found.'
+    quest_description = ' '.join(
+        quest_description_paragraph.stripped_strings) if quest_description_paragraph else 'No paragraph found.'
 
     # Scraping the Quest Release Date (quest_release_date)
     infobox = soup.find('table', class_='rsw-infobox no-parenthesis-style infobox-quest')
@@ -51,7 +56,20 @@ def scrape_quest_data(url):
             text_parts = list(start_point_data.stripped_strings)[:-1]  # Convert to list and remove the last item
             start_point = ' '.join(text_parts).strip()
 
-    # Scraping the Quest Requirements (quest_requirements)
+    # Scraping the Quest Requirements (quest_requirements) TODO: Not Comma Separated
+    required_quests_info = []
+    quest_ul = soup.find('td', style="padding-left:25px").find('ul')
+    if quest_ul:
+        li_tags = quest_ul.find_all('li', recursive=False)
+        for li in li_tags:
+            # Check if there's an <a> tag inside the <li>
+            if li.find('a'):
+                # This will take the text from each <li> and strip extra whitespace
+                quest_text = ' '.join(li.stripped_strings).strip()
+                required_quests_info.append(quest_text)
+
+    # To combine into one string separated by commas:
+    quest_requirements = ', '.join(required_quests_info)
 
     # Scraping the Required Quest Items (quest_items)
     required_items_td = soup.find('td', {'data-attr-param': 'itemsDisp'})
@@ -68,7 +86,6 @@ def scrape_quest_data(url):
 
     # Scraping the Enemies needed to be defeated (quest_enemies)
     enemies_info = []
-
     enemies_td = soup.find('td', {'data-attr-param': 'kills'})
     if enemies_td:
         li_tags = enemies_td.find_all('li')
@@ -78,17 +95,61 @@ def scrape_quest_data(url):
     quest_enemies = ', '.join(enemies_info)
 
     # Scraping Steps Description (quest_steps)
+    body_content = soup.find('div', id='bodyContent')
+    paragraphs = []
+    if body_content:
+        # Find all paragraph tags within the 'bodyContent' div
+        p_tags = body_content.find_all('p', recursive=True)
+        for p in p_tags:
+            paragraphs.append(p.get_text(strip=True))
+
+    quest_steps = ' '.join(paragraphs)
 
     # Scraping the Quest Rewards (quest_rewards)
+    # Find the 'Rewards' header
+    rewards_header = soup.find(lambda tag: tag.name == 'h2' and 'Rewards' in tag.text)
+    quest_rewards = ''
 
-    # Scraping the Quest Achievements (quest_achievements)
+    if rewards_header:
+        # Attempt to find the next <ul> element after the 'Rewards' header
+        next_ul = rewards_header.find_next('ul')
+        if next_ul:
+            # Extract text from each li in the ul and join into a string
+            quest_rewards = ', '.join([li.get_text(strip=True) for li in next_ul.find_all('li')])
+        else:
+            quest_rewards = 'Rewards list not found.'
+    else:
+        quest_rewards = 'Rewards section not found.'
 
-    return quest_description, quest_name, release_date, members_requirement, start_point, quest_items, enemies_info, quest_enemies
+    return quest_description, quest_name, release_date, members_requirement, start_point, quest_items, quest_enemies, quest_requirements, quest_rewards, quest_steps
 
 
+# This will be a list of dictionaries with the scraped data
+all_quest_data = []
 
-# URL to scrape
-# url = 'https://runescape.wiki/w/Observatory_Quest'
-url = 'https://runescape.wiki/w/Wanted!'
-quest_data = scrape_quest_data(url)
-print(quest_data)
+# Iterate over the list of URLs
+for url in quest_links:
+    quest_data = scrape_quest_data(url)
+    all_quest_data.append(quest_data)
+    time.sleep(1)
+
+# Write to CSV
+csv_file = 'quests_data.csv'
+csv_headers = ['quest_description', 'quest_name', 'release_date', 'members_requirement',
+               'start_point', 'quest_items', 'quest_enemies', 'quest_requirements',
+               'quest_rewards', 'quest_steps']
+
+# Convert all your tuples to dictionaries
+all_quest_data_dicts = []
+for quest_tuple in all_quest_data:
+    quest_dict = dict(zip(csv_headers, quest_tuple))
+    all_quest_data_dicts.append(quest_dict)
+
+# Now write the list of dictionaries to a CSV file
+with open(csv_file, 'w', newline='', encoding='utf-8') as file:
+    writer = csv.DictWriter(file, fieldnames=csv_headers)
+    writer.writeheader()
+    for quest_data in all_quest_data_dicts:
+        writer.writerow(quest_data)
+
+print(f'Data written to {csv_file}')

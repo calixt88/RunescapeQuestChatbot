@@ -4,11 +4,21 @@ import time
 from quest_links import quest_links
 from bs4 import BeautifulSoup
 
-
-def scrape_quest_data(url):
+def scrape_quest_data(wiki_link):
     # Initial Beautiful Soup Setup
-    response = requests.get(url)
+    response = requests.get(wiki_link)
     soup = BeautifulSoup(response.text, 'html.parser')
+
+    quest_name = 'No Quest Name Found'
+    quest_description = 'No paragraph found.'
+    release_date = ""
+    members_requirement = ""
+    start_point = ""
+    quest_requirements = ""
+    quest_items = ""  # Initialize quest_items
+    quest_enemies = ""
+    quest_rewards = ""
+    quest_steps = ""
 
     # Scraping the Quest Name (quest_name)
     content_div = soup.find('div', id='content')
@@ -24,12 +34,9 @@ def scrape_quest_data(url):
 
     # Scraping the Quest Release Date (quest_release_date)
     infobox = soup.find('table', class_='rsw-infobox no-parenthesis-style infobox-quest')
-    release_date = ""
     if infobox:
-        # Look for the 'td' with 'data-attr-param' set to 'release'
         release_td = infobox.find('td', {"data-attr-param": "release"})
         if release_td:
-            # Get all text within the 'td' element, and take only the first two parts (usually the date and year)
             release_date_parts = list(release_td.stripped_strings)[:2]  # Only take the first two elements
             release_date = ' '.join(release_date_parts)
 
@@ -37,10 +44,8 @@ def scrape_quest_data(url):
     infobox = soup.find('table', class_='rsw-infobox no-parenthesis-style infobox-quest')
     members_info = ""
     if infobox:
-        # Find the <th> or <td> element containing the word "Members"
         members_element = infobox.find(lambda tag: tag.name in ['th', 'td'] and 'Members' in tag.text)
         if members_element:
-            # Get the next <td> sibling which should contain the text "Yes" or "No"
             members_requirement_td = members_element.find_next_sibling('td')
             if members_requirement_td:
                 members_requirement = members_requirement_td.text.strip()
@@ -49,38 +54,30 @@ def scrape_quest_data(url):
     start_point = ""
     start_point_table = soup.find('table', class_='questdetails plainlinks')
     if start_point_table:
-        # Find the td element that has a 'data-attr-param' of 'start'
         start_point_data = start_point_table.find('td', {'data-attr-param': 'startDisp'})
         if start_point_data:
-            # Extract all text from this td element
             text_parts = list(start_point_data.stripped_strings)[:-1]  # Convert to list and remove the last item
             start_point = ' '.join(text_parts).strip()
 
-    # Scraping the Quest Requirements (quest_requirements) TODO: Not Comma Separated
+    # Scraping the Quest Requirements (quest_requirements)
     required_quests_info = []
     quest_ul = soup.find('td', style="padding-left:25px").find('ul')
     if quest_ul:
         li_tags = quest_ul.find_all('li', recursive=False)
         for li in li_tags:
-            # Check if there's an <a> tag inside the <li>
             if li.find('a'):
-                # This will take the text from each <li> and strip extra whitespace
                 quest_text = ' '.join(li.stripped_strings).strip()
                 required_quests_info.append(quest_text)
-
-    # To combine into one string separated by commas:
     quest_requirements = ', '.join(required_quests_info)
 
     # Scraping the Required Quest Items (quest_items)
     required_items_td = soup.find('td', {'data-attr-param': 'itemsDisp'})
     quest_items_parts = []
+    quest_items = ""
     if required_items_td:
-        # Find the div that contains the actual list items
         lighttable_checklist_div = required_items_td.find('div', class_='lighttable checklist')
         if lighttable_checklist_div:
-            # Find all list items
             list_items = lighttable_checklist_div.find_all('li')
-            # Extract the text from each list item
             quest_items_parts = [li.get_text(separator=" ").strip() for li in list_items]
             quest_items = ','.join(quest_items_parts)
 
@@ -98,23 +95,16 @@ def scrape_quest_data(url):
     body_content = soup.find('div', id='bodyContent')
     paragraphs = []
     if body_content:
-        # Find all paragraph tags within the 'bodyContent' div
         p_tags = body_content.find_all('p', recursive=True)
         for p in p_tags:
             paragraphs.append(p.get_text(strip=True))
-
     quest_steps = ' '.join(paragraphs)
 
     # Scraping the Quest Rewards (quest_rewards)
-    # Find the 'Rewards' header
     rewards_header = soup.find(lambda tag: tag.name == 'h2' and 'Rewards' in tag.text)
-    quest_rewards = ''
-
     if rewards_header:
-        # Attempt to find the next <ul> element after the 'Rewards' header
         next_ul = rewards_header.find_next('ul')
         if next_ul:
-            # Extract text from each li in the ul and join into a string
             quest_rewards = ', '.join([li.get_text(strip=True) for li in next_ul.find_all('li')])
         else:
             quest_rewards = 'Rewards list not found.'
